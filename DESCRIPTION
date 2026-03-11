@@ -1,0 +1,30 @@
+Package: stables
+Type: Package
+Title: Helper functions for DMP statistical analyses, primarily for aerial survey data.
+Version: 0.1.0
+Authors@R: c(
+    person(
+      "Callum", "Clarke",
+      email = "callum@dmpstats.co.uk",
+      role = c("aut", "cre")
+    )
+  )
+Description: This package contains a number of cleaning functions and helpers
+    for handling aerial survey data. 
+License: What license is it under?
+Encoding: UTF-8
+LazyData: true
+Imports: 
+    cli,
+    dplyr,
+    ggplot2,
+    leaflet,
+    lubridate,
+    lwgeom,
+    sf,
+    stringr,
+    magrittr,
+    progress,
+    tidyr,
+    geosphere
+RoxygenNote: 7.3.2
