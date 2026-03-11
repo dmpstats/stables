@@ -35,7 +35,7 @@ prepObsPPM <- function(
   targetBehaviour = "All",
   survey_tolerance = 500,
   jitter = 5
-) {for
+) {
   cli::cli_h3("Preparing observations for PPM analysis")
   cli::cli_inform("Filtering observations  species '{targetSpecies}' and behaviour '{targetBehaviour}'.")
   cli::cli_alert_info("Beginning with {nrow(observations)} total observations.")
