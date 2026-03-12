@@ -1,4 +1,5 @@
 #' Snap Observations to Nearest Effort Nodes and Summarize by Group
+# nolint start
 #'
 #' This function associates observation points (e.g., from transect surveys) with their nearest effort nodes or segments (e.g., trackpoints from survey effort), and summarizes the number of observations snapped to each node within specified groups (such as survey dates).
 #'
@@ -23,12 +24,13 @@
 #' # Example usage:
 #' # snapped <- snapObs(obsdata, trackpoints, group_col = "date")
 #'
+# nolint end
 #' @export
 snapObs <- function(obsdata, 
 trackpoints, 
 group_col = "date",
 sparse_format = FALSE) {
-  cli::cli_h3("Snapping observations to nearest effort nodes and summarizing by group")
+  cli::cli_h3("Snapping observations to nearest effort nodes and summarizing by group") # nolint
 
   # Check group_col exists in both datasets
   if (!(group_col %in% colnames(obsdata))) {
@@ -80,6 +82,14 @@ sparse_format = FALSE) {
   })
 
   # Report maximum and minimum counts per node
+  # Enter a browser if there is an error in the below line
+  tryCatch({
+    min_count <- min(sapply(result_list, function(x) min(x$count)))
+    max_count <- max(sapply(result_list, function(x) max(x$count)))
+  }, error = function(e) {
+    cli::cli_alert_danger("Error calculating min and max counts: {e$message}")
+    browser()
+  })
   cli::cli_inform(
     "Observation counts per snapped node range from {min(sapply(result_list, function(x) min(x$count)))} to {max(sapply(result_list, function(x) max(x$count)))}."
   )
