@@ -62,6 +62,12 @@ sparse_format = FALSE) {
     trackpoints <- sf::st_cast(trackpoints, "POINT")
   }
 
+  # If the obs dataset is empty, return trackpoints with count = 0
+  if (nrow(obsdata) == 0) {
+    cli::cli_alert_warning("obsdata is empty. Returning trackpoints with count = 0.") # nolint
+    return(trackpoints %>% dplyr::mutate(count = 0))
+  }
+
   # Snap and summarize by group
   result_list <- lapply(obs_groups, function(g) {
     obs_g <- obsdata[obsdata[[group_col]] == g, ]
@@ -82,17 +88,12 @@ sparse_format = FALSE) {
   })
 
   # Report maximum and minimum counts per node
-  # Enter a browser if there is an error in the below line
-  tryCatch({
-    min_count <- min(sapply(result_list, function(x) min(x$count)))
+  min_count <- min(sapply(result_list, function(x) min(x$count)))
     max_count <- max(sapply(result_list, function(x) max(x$count)))
-  }, error = function(e) {
-    cli::cli_alert_danger("Error calculating min and max counts: {e$message}")
-    browser()
-  })
-  cli::cli_inform(
-    "Observation counts per snapped node range from {min(sapply(result_list, function(x) min(x$count)))} to {max(sapply(result_list, function(x) max(x$count)))}."
+    cli::cli_inform(
+    "Observation counts per snapped node range from {min_count} to {max_count}."
   )
+
 
   result <- dplyr::bind_rows(result_list)
 

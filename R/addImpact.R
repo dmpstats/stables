@@ -58,9 +58,9 @@ addImpact <- function(
 
   # First, generate dist column - nearest distance to any OWF polygon
   cli::cli_inform("Calculating nearest distance to offshore wind farms...")
-  dist_vec <- sf::st_nearest_points(data, owf_poly) %>%
-    sf::st_length() %>%
-    units::set_units("km") %>%
+  dist_vec <- sf::st_nearest_points(data, owf_poly) |>
+    sf::st_length() |>
+    units::set_units("km") |>
     units::drop_units()
   data$owf_dist <- dist_vec
 
