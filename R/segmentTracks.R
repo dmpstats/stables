@@ -1,5 +1,6 @@
 #' segmentTracks
 #'
+# nolint start
 #' Splits survey tracks into regular segments and optionally associates observations with segments.
 #'
 #' @param trackdata An sf dataframe of survey tracks (LINESTRING or MULTILINESTRING).
@@ -8,9 +9,12 @@
 #' @param output_type Character: either "points" (default) to return segment centroids as points, or "lines" to return segment linestrings.
 #' @param camera_width Numeric: width of each camera's field of view in metres. Only used if obsdata is not provided. Default is 125 metres.
 #' @param transect_width Numeric: width of each transect in metres. Only used if obsdata is not provided. If both obsdata and transect_width are provided, obsdata takes precedence.
+#' @param remove_uninteresting_cameras Logical. If TRUE, removes camera-date combinations that did not record any species listed in species_of_interest. Requires both obsdata and a non-empty species_of_interest.
+#' @param species_of_interest Character vector of species names used to decide which camera-date combinations are retained when remove_uninteresting_cameras is TRUE.
 #' @param polygonize Logical: if TRUE, segments will be converted to polygons representing the transect area. Default is FALSE.
 #'
 #' @return An sf dataframe of segmented tracks, optionally with associated observations.
+# nolint end
 #' @details
 #' - Validates input types and required columns.
 #' - Segments tracks into regular lengths.
@@ -21,14 +25,18 @@
 #' segments_with_obs <- segmentTracks(trackdata, 1000, obsdata)
 #' }
 #' @export
-segmentTracks <- function(trackdata, 
-seg_length, 
-obsdata = NULL,
-                          output_type = c("points", "lines"),
-                          camera_width = 125,
-                          transect_width = NULL,
-                          polygonize = FALSE) {
-  cli::cli_h3("Segmenting {nrow(trackdata)} survey tracks into {seg_length} metre segments")
+segmentTracks <- function( # nolint
+  trackdata,
+  seg_length,
+  obsdata = NULL,
+  output_type = c("points", "lines"),
+  camera_width = 125,
+  transect_width = NULL,
+  remove_uninteresting_cameras = TRUE,
+  species_of_interest = NULL,
+  polygonize = FALSE
+) {
+  cli::cli_h3("Segmenting {nrow(trackdata)} survey tracks into {seg_length} metre segments") # nolint
   # Input validation
   if (!inherits(trackdata, "sf") || nrow(trackdata) == 0) {
     stop("trackdata must be a non-empty sf dataframe.")
@@ -40,6 +48,32 @@ obsdata = NULL,
   if (!is.numeric(seg_length) || length(seg_length) != 1 || seg_length <= 0) {
     stop("seg_length must be a single positive numeric value (metres).")
   }
+  if (!is.logical(remove_uninteresting_cameras) ||
+    length(remove_uninteresting_cameras) != 1 ||
+    is.na(remove_uninteresting_cameras)) {
+    cli::cli_abort("{.arg remove_uninteresting_cameras} must be either TRUE or FALSE.")
+  }
+
+  valid_species_of_interest <- !is.null(species_of_interest) &&
+    length(species_of_interest) > 0 &&
+    any(!is.na(species_of_interest) &
+      nzchar(trimws(as.character(species_of_interest))))
+
+  if (remove_uninteresting_cameras) {
+    if (is.null(obsdata)) {
+      cli::cli_abort("{.arg obsdata} must be provided when {.arg remove_uninteresting_cameras} is TRUE.")
+    }
+    if (!valid_species_of_interest) {
+      cli::cli_abort("{.arg species_of_interest} must be provided and contain at least one species when {.arg remove_uninteresting_cameras} is TRUE.")
+    }
+
+    species_of_interest <- as.character(species_of_interest)
+    species_of_interest <- trimws(species_of_interest)
+    species_of_interest <- species_of_interest[
+      !is.na(species_of_interest) & nzchar(species_of_interest)
+    ]
+  }
+
   if (!is.null(obsdata)) {
     if (!inherits(obsdata, "sf") || nrow(obsdata) == 0) {
       stop("obsdata must be a non-empty sf dataframe if provided.")
@@ -54,20 +88,22 @@ obsdata = NULL,
   }
 
   # If 'obsdata' is provided, check that both datasets have a 'date' column
-  # and that all dates in obsdata are present in trackdata, but the reverse is not necessary
+  # and that all dates in obsdata are present in trackdata,
+  # but the reverse is not necessary
   if (!is.null(obsdata)) {
     if (!"date" %in% colnames(trackdata) || !"date" %in% colnames(obsdata)) {
-      cli::cli_abort("Both trackdata and obsdata must contain a 'date' column to associate observations with segments.")
+      cli::cli_abort("Both trackdata and obsdata must contain a 'date' column to associate observations with segments.") # nolint
     }
     missing_dates <- setdiff(unique(obsdata$date), unique(trackdata$date))
     if (length(missing_dates) > 0) {
-      cli::cli_abort("The following dates are present in obsdata but missing from trackdata: ", paste(missing_dates, collapse = ", "))
+      cli::cli_abort("The following dates are present in obsdata but missing from trackdata: ", paste(missing_dates, collapse = ", ")) # nolint
     }
   }
 
-  # If obsdata is provided but transect_width is also provided, warn that obsdata takes precedence
+  # If obsdata is provided but transect_width is also provided, 
+  # warn that obsdata takes precedence
   if (!is.null(obsdata) && !is.null(transect_width)) {
-    cli::cli_alert_warning("Both obsdata and transect_width are provided. Transect widths will be calculated from obsdata; transect_width will be ignored.")
+    cli::cli_alert_warning("Both obsdata and transect_width are provided. Transect widths will be calculated from obsdata; transect_width will be ignored.") # nolint
   }
 
   # If no obsdata is provided but nor is transect_width, abort
@@ -127,6 +163,38 @@ obsdata = NULL,
   # If obsdata is provided, determine how many cameras were reviewed
   # on each survey-date
   if (!is.null(obsdata)) {
+    if (remove_uninteresting_cameras) {
+      cli::cli_alert_danger("Removing cameras that did NOT record any species of interest...")
+      # Identify cameras that recorded NONE of the species-of-interest
+      # on a certain day
+      cameras_to_remove <- obsdata %>%
+        as.data.frame() %>%
+        dplyr::group_by(date, Camera) %>%
+        dplyr::summarise(recorded_species = any(Species %in% species_of_interest)) %>%
+        dplyr::filter(!recorded_species) %>%
+        dplyr::select(date, Camera)
+      cli::cli_alert_danger("Removing {nrow(cameras_to_remove)} camera-dates that did not record any species of interest. Set remove_uninteresting_cameras = FALSE to keep them.") # nolint
+      if (nrow(cameras_to_remove) > 0) {
+        cli::cli_inform("The following camera-dates will be removed:")
+        cli::cli_ul(paste(cameras_to_remove$date, cameras_to_remove$Camera, sep = " - ")) # nolint
+
+        # If any days would only have 3 cameras left, enter browser
+        cameras_remaining <- obsdata %>%
+          as.data.frame() %>%
+          dplyr::anti_join(cameras_to_remove, by = c("date", "Camera")) %>%
+          dplyr::group_by(date) %>%
+          dplyr::summarise(n_cameras = dplyr::n_distinct(Camera)) %>%
+          dplyr::filter(n_cameras <= 3)
+        if (nrow(cameras_remaining) > 0) {
+          browser()
+        }
+
+        # Remove these cameras from obsdata
+        obsdata <- obsdata %>%
+          dplyr::anti_join(cameras_to_remove, by = c("date", "Camera"))
+      }
+    }
+
     cameras_per_date <- obsdata %>%
       as.data.frame() %>%
       dplyr::group_by(date) %>%
@@ -188,6 +256,7 @@ obsdata = NULL,
 }
 
 utils::globalVariables(c(
-  "date", "Camera", "n_cameras", "%>%",
-  "transect_width_m", "seg_length_m", "effort_km"
+  "date", "Camera", "Species", "recorded_species", "n_cameras",
+  "n_dates", "geometry", "%>%", "transect_width_m",
+  "seg_length_m", "effort_km"
 ))
