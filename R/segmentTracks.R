@@ -10,6 +10,7 @@
 #' @param camera_width Numeric: width of each camera's field of view in metres. Only used if obsdata is not provided. Default is 125 metres.
 #' @param transect_width Numeric: width of each transect in metres. Only used if obsdata is not provided. If both obsdata and transect_width are provided, obsdata takes precedence.
 #' @param remove_uninteresting_cameras Logical. If TRUE, removes camera-date combinations that did not record any species listed in species_of_interest. Requires both obsdata and a non-empty species_of_interest.
+#' @param even_cameras Logical. If TRUE (default), odd camera counts per date are rounded down to the nearest even number. Useful when surveys always deploy cameras in pairs but different transects may be reviewed on the same day.
 #' @param species_of_interest Character vector of species names used to decide which camera-date combinations are retained when remove_uninteresting_cameras is TRUE.
 #' @param polygonize Logical: if TRUE, segments will be converted to polygons representing the transect area. Default is FALSE.
 #'
@@ -33,6 +34,7 @@ segmentTracks <- function( # nolint
   camera_width = 125,
   transect_width = NULL,
   remove_uninteresting_cameras = TRUE,
+  even_cameras = TRUE,
   species_of_interest = NULL,
   polygonize = FALSE
 ) {
@@ -178,17 +180,6 @@ segmentTracks <- function( # nolint
         cli::cli_inform("The following camera-dates will be removed:")
         cli::cli_ul(paste(cameras_to_remove$date, cameras_to_remove$Camera, sep = " - ")) # nolint
 
-        # If any days would only have 3 cameras left, enter browser
-        cameras_remaining <- obsdata %>%
-          as.data.frame() %>%
-          dplyr::anti_join(cameras_to_remove, by = c("date", "Camera")) %>%
-          dplyr::group_by(date) %>%
-          dplyr::summarise(n_cameras = dplyr::n_distinct(Camera)) %>%
-          dplyr::filter(n_cameras <= 3)
-        if (nrow(cameras_remaining) > 0) {
-          browser()
-        }
-
         # Remove these cameras from obsdata
         obsdata <- obsdata %>%
           dplyr::anti_join(cameras_to_remove, by = c("date", "Camera"))
@@ -200,6 +191,20 @@ segmentTracks <- function( # nolint
       dplyr::group_by(date) %>%
       dplyr::summarise(n_cameras = dplyr::n_distinct(Camera)) %>%
       dplyr::ungroup()
+
+    if (even_cameras) {
+      # If even_cameras is TRUE, there were always an even
+      # number of cameras. 
+      # This is common in HiDef if 2 cams were reviewed per day,
+      # but different cams on different transects.-
+      # So we round odd numbers DOWN. 
+      cli::cli_alert_danger("Rounding odd numbers of cameras down to the nearest even number, as even_cameras = TRUE. Set even_cameras = FALSE to keep odd numbers of cameras.") # nolint
+      cameras_per_date <- cameras_per_date %>%
+        dplyr::mutate(
+          n_cameras = ifelse(n_cameras %% 2 == 1, n_cameras - 1, n_cameras)
+        )
+    }
+
     # Join camera counts to segmented_tracks
     segmented_tracks <- segmented_tracks %>%
       dplyr::left_join(cameras_per_date, by = "date")
