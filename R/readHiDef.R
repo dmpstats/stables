@@ -32,18 +32,19 @@ readHiDef <- function(
     stringsAsFactors = FALSE
   ) |>
     dplyr::mutate(
-  # Extract the date from the final part of the directory name before .gdb,
-  # in a format such as 20250129
-      date = stringr::str_extract(dir, "(?<=_)\\d{8}(?=\\.gdb$)") |>
-        lubridate::ymd(),
-      year = lubridate::year(date),
-      month = lubridate::month(date),
+      # Extract year and month from directory name format:
+      # "YYYY - Month MM - Survey SS - Issue I - YYYYMMDD"
+      # (the trailing date is the review date, not the collection date)
+      year = as.integer(stringr::str_extract(dir, "\\d{4}(?= - Month )")),
+      month = as.integer(stringr::str_extract(dir, "(?<=Month )\\d{2}")),
+      date = lubridate::make_date(year, month, 1),
       survey = stringr::str_extract(dir, "(?<=Survey )\\d{2}"),
       issue = as.integer(stringr::str_extract(dir, "(?<=Issue )\\d+"))
     ) |>
     dplyr::group_by(date, survey) |>
     dplyr::arrange(-issue) |>
     dplyr::slice(1)
+  
   gdb_dirs <- dirs$dir
   if (is.null(gdb_dirs) || length(gdb_dirs) == 0) {
     cli::cli_abort("No HiDef-format .gdb files detected.")
