@@ -19,6 +19,14 @@ readHiDef <- function(
 ) {
   cli::cli_h3("Reading HiDef data from {.file {filepath}}")
 
+  # Parse dates that may arrive as Date/POSIXct already, or as DD/MM/YYYY text
+  parse_survey_date <- function(x) {
+    if (inherits(x, "Date") || inherits(x, "POSIXct")) {
+      return(lubridate::date(x))
+    }
+    lubridate::dmy(x, quiet = TRUE)
+  }
+
   # From the defined filepath, identify all filepaths ending in .gdb
   gdb_dirs <- list.dirs(filepath,
     recursive = TRUE,
@@ -77,7 +85,7 @@ readHiDef <- function(
       # Remove all underscores from column names
       dplyr::rename_with(~gsub("_", "", .x, fixed = TRUE)) |>
       # Ensure DATE is formatted correctly
-      dplyr::mutate(DATE = lubridate::date(DATE)) |>
+      dplyr::mutate(DATE = parse_survey_date(DATE)) |>
       # Select only essential cols
       dplyr::select(DATE, HEIGHT, Shape) |>
       # rename column DATE to date
@@ -106,7 +114,7 @@ readHiDef <- function(
         layer = layername,
         quiet = TRUE
       ) |>
-        dplyr::mutate(Survey_Date = lubridate::date(Survey_Date)) |>
+        dplyr::mutate(Survey_Date = parse_survey_date(Survey_Date)) |>
         dplyr::select(
           Survey,
           Species,
