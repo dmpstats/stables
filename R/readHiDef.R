@@ -89,7 +89,8 @@ readHiDef <- function(
       # Select only essential cols
       dplyr::select(DATE, HEIGHT, Shape) |>
       # rename column DATE to date
-      dplyr::rename(date = DATE)
+      dplyr::rename(date = DATE) |>
+      dplyr::mutate(source_file = dirpath)
       # If overwrite_dates is TRUE, replace DATE with file date
       if (overwrite_dates) {
         file_date <- stringr::str_extract(dirpath, "(?<=_)\\d{8}(?=\\.gdb$)") |>
