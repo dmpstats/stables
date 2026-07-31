@@ -114,7 +114,14 @@ readHiDef <- function(
       tempobs <- sf::st_read(dirpath,
         layer = layername,
         quiet = TRUE
-      ) |>
+      )
+
+      # Handle inconsistent column naming for the survey date field
+      if (!"Survey_Date" %in% names(tempobs) && "Date_" %in% names(tempobs)) {
+        tempobs <- tempobs |> dplyr::rename(Survey_Date = Date_)
+      }
+
+      tempobs <- tempobs |>
         dplyr::mutate(Survey_Date = parse_survey_date(Survey_Date)) |>
         dplyr::select(
           Survey,
