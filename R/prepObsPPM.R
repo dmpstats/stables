@@ -99,10 +99,18 @@ prepObsPPM <- function(
     cli::cli_abort("No observations remain after filtering. Please check your species and behaviour filters.")  # nolint
   }
 
-  # Check that all observations are within survey 
-  # tolerance of tracks or polygons
+  # Check that all observations are within survey tolerance of tracks or polygons
   track_buffer <- sf::st_buffer(tracks, dist = units::set_units(survey_tolerance, "meters"))  # nolint
-  obs_within_buffer <- sf::st_within(filtered_obs, sf::st_union(track_buffer), sparse = FALSE)  # nolint
+  sf::sf_use_s2(FALSE)
+
+  track_union <- track_buffer |>
+    sf::st_make_valid() |>
+    sf::st_union() |>
+    sf::st_make_valid()   # validate again post-union
+
+  obs_within_buffer <- sf::st_within(filtered_obs, track_union, sparse = FALSE) # nolint
+  sf::sf_use_s2(TRUE)  # nolint
+
   if (any(!obs_within_buffer)) {
     n_outside <- sum(!obs_within_buffer)
     percent_outside <- round((n_outside / nrow(filtered_obs)) * 100, 2)
