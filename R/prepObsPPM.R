@@ -29,116 +29,411 @@
 #' # Example usage
 #' result <- function_name(param1, param2)
 prepObsPPM <- function(
-  observations,
-  tracks,
-  targetSpecies,
-  targetBehaviour = "All",
-  survey_tolerance = 500,
-  jitter = 5,
-  remove_dead = TRUE
+    observations,
+    tracks,
+    targetSpecies,
+    targetBehaviour = "All",
+    survey_tolerance = 500,
+    jitter = 5,
+    remove_dead = TRUE
 ) {
+
   cli::cli_h3("Preparing observations for PPM analysis")
-  cli::cli_inform("Filtering observations  species '{targetSpecies}' and behaviour '{targetBehaviour}'.")  # nolint
-  cli::cli_alert_info("Beginning with {nrow(observations)} total observations.")
 
-  # Input validation
-  # Ensure that observations is an sf point dataframe
-  if (!inherits(observations, "sf") || 
-  !all(sf::st_geometry_type(observations) %in% c("POINT", "MULTIPOINT"))) { 
-    cli::cli_abort("observations must be an sf dataframe with POINT or MULTIPOINT geometries.")  # nolint
+  cli::cli_inform(
+    "Filtering observations for species '{targetSpecies}' and behaviour '{targetBehaviour}'."
+  )
+
+  cli::cli_alert_info(
+    "Beginning with {nrow(observations)} total observations."
+  )
+
+  # ------------------------------------------------------------------
+  # 1. Input validation
+  # ------------------------------------------------------------------
+
+  if (
+    !inherits(observations, "sf") ||
+    !all(sf::st_geometry_type(observations) %in% c("POINT", "MULTIPOINT"))
+  ) {
+    cli::cli_abort(
+      "observations must be an sf dataframe with POINT or MULTIPOINT geometries."
+    )
   }
-  # Ensure that tracks is an sf linestring or polygon dataframe
-  if (!inherits(tracks, "sf") || !all(sf::st_geometry_type(tracks) %in% c("LINESTRING", "MULTILINESTRING", "POLYGON", "MULTIPOLYGON"))) {
-    cli::cli_abort("tracks must be an sf dataframe with LINESTRING or POLYGON geometries.")  # nolint
+
+  if (
+    !inherits(tracks, "sf") ||
+    !all(
+      sf::st_geometry_type(tracks) %in%
+        c(
+          "LINESTRING",
+          "MULTILINESTRING",
+          "POLYGON",
+          "MULTIPOLYGON"
+        )
+    )
+  ) {
+    cli::cli_abort(
+      "tracks must be an sf dataframe with LINESTRING, MULTILINESTRING, POLYGON, or MULTIPOLYGON geometries."
+    )
   }
-  # If no Species column is provided, abort
+
   if (!"Species" %in% colnames(observations)) {
-    cli::cli_abort("The observations data must contain a 'Species' column.")
-  }
-  # If no Behaviour column is provided but one is requested, abort
-  if (targetBehaviour != "All" && !"Behaviour" %in% colnames(observations)) {
-    cli::cli_abort("The observations data must contain a 'Behaviour' column to filter by behaviour.")  # nolint
-  }
-  # Check that the provided species is within the observations data
-  if (!targetSpecies %in% unique(observations$Species)) {
-    cli::cli_abort("The specified species '{targetSpecies}' is not found in the observations data.")  # nolint
-  }
-  # If behaviour is not "All", check it's in the data
-  if (targetBehaviour != "All" &&
-    !any(stringr::str_detect(tolower(observations$Behaviour), 
-    tolower(targetBehaviour)))) {
-    cli::cli_abort("The specified behaviour '{targetBehaviour}' is not found in the observations data.")  # nolint
+    cli::cli_abort(
+      "The observations data must contain a 'Species' column."
+    )
   }
 
-  # If Behaviour is provided, check if any observations
-  # match 'dead'. If they do, remove them with a warning
+  if (
+    targetBehaviour != "All" &&
+    !"Behaviour" %in% colnames(observations)
+  ) {
+    cli::cli_abort(
+      "The observations data must contain a 'Behaviour' column to filter by behaviour."
+    )
+  }
+
+  if (!targetSpecies %in% unique(observations$Species)) {
+    cli::cli_abort(
+      "The specified species '{targetSpecies}' is not found in the observations data."
+    )
+  }
+
+  if (
+    targetBehaviour != "All" &&
+    !any(
+      stringr::str_detect(
+        tolower(observations$Behaviour),
+        tolower(targetBehaviour)
+      )
+    )
+  ) {
+    cli::cli_abort(
+      "The specified behaviour '{targetBehaviour}' is not found in the observations data."
+    )
+  }
+
+  # ------------------------------------------------------------------
+  # 2. Check CRS before doing ANY spatial operations
+  # ------------------------------------------------------------------
+
+  obs_crs <- sf::st_crs(observations)
+  track_crs <- sf::st_crs(tracks)
+
+  if (is.na(obs_crs)) {
+    cli::cli_abort(
+      "observations does not have a valid CRS."
+    )
+  }
+
+  if (is.na(track_crs)) {
+    cli::cli_abort(
+      "tracks does not have a valid CRS."
+    )
+  }
+
+  # We expect observations and tracks to already be in the same CRS.
+  # Do NOT silently transform one here because that can hide an upstream
+  # coordinate/CRS problem.
+  if (obs_crs != track_crs) {
+    cli::cli_abort(
+      paste0(
+        "observations and tracks have different CRSs.\n",
+        "observations: ", sf::st_crs(observations)$input, "\n",
+        "tracks: ", sf::st_crs(tracks)$input, "\n",
+        "Transform them to the same CRS before calling prepObsPPM()."
+      )
+    )
+  }
+
+  cli::cli_inform(
+    "Observations and tracks both use {obs_crs$input}."
+  )
+
+  # ------------------------------------------------------------------
+  # 3. Remove dead observations
+  # ------------------------------------------------------------------
+
   if (remove_dead && "Behaviour" %in% colnames(observations)) {
-    n_dead <- sum(stringr::str_detect(tolower(observations$Behaviour), "dead"))
+
+    n_dead <- sum(
+      stringr::str_detect(
+        tolower(observations$Behaviour),
+        "dead"
+      ),
+      na.rm = TRUE
+    )
+
     if (n_dead > 0) {
-      cli::cli_warn("Removing {n_dead} observations with 'dead' behaviour. Set remove_dead = FALSE to keep them.") # nolint
-      observations <- observations[!stringr::str_detect(tolower(observations$Behaviour), "dead"), ] # nolint
+
+      cli::cli_warn(
+        "Removing {n_dead} observations with 'dead' behaviour. Set remove_dead = FALSE to keep them."
+      )
+
+      observations <- observations[
+        !stringr::str_detect(
+          tolower(observations$Behaviour),
+          "dead"
+        ),
+        ,
+        drop = FALSE
+      ]
     }
   }
 
-  # If Behaviour is provided, we list all the behaviours that string-match
-  # so that the user can identify errors
+  # ------------------------------------------------------------------
+  # 4. Report behaviours matching requested behaviour
+  # ------------------------------------------------------------------
+
   if (targetBehaviour != "All") {
-    matching_behaviours <- unique(observations$Behaviour[stringr::str_detect(tolower(observations$Behaviour), tolower(targetBehaviour))]) # nolint
-    cli::cli_inform("The following behaviours match the target behaviour:")
+
+    matching_behaviours <- unique(
+      observations$Behaviour[
+        stringr::str_detect(
+          tolower(observations$Behaviour),
+          tolower(targetBehaviour)
+        )
+      ]
+    )
+
+    cli::cli_inform(
+      "The following behaviours match the target behaviour:"
+    )
+
     cli::cli_ul(matching_behaviours)
   }
-  # Filter observations for target species and behaviour (if provided)
-  filtered_obs <- observations %>%
-    dplyr::filter(Species == targetSpecies) %>% {
-      if (targetBehaviour != "All") dplyr::filter(., stringr::str_detect(tolower(Behaviour), tolower(targetBehaviour))) else .  # nolint
-    }
-  # Report how many observations remain after filtering
-  n_filtered <- nrow(filtered_obs)
-  cli::cli_alert_info("{n_filtered} observations remain after filtering for species '{targetSpecies}' and behaviour '{targetBehaviour}'.")  # nolint
-  if (n_filtered == 0) {
-    cli::cli_abort("No observations remain after filtering. Please check your species and behaviour filters.")  # nolint
+
+  # ------------------------------------------------------------------
+  # 5. Filter observations by species and behaviour
+  # ------------------------------------------------------------------
+
+  filtered_obs <- observations |>
+    dplyr::filter(Species == targetSpecies)
+
+  if (targetBehaviour != "All") {
+
+    filtered_obs <- filtered_obs |>
+      dplyr::filter(
+        stringr::str_detect(
+          tolower(Behaviour),
+          tolower(targetBehaviour)
+        )
+      )
   }
 
-  # Check that all observations are within survey tolerance of tracks or polygons
-  track_buffer <- sf::st_buffer(tracks, dist = units::set_units(survey_tolerance, "meters"))  # nolint
+  n_filtered <- nrow(filtered_obs)
+
+  cli::cli_alert_info(
+    "{n_filtered} observations remain after filtering for species '{targetSpecies}' and behaviour '{targetBehaviour}'."
+  )
+
+  if (n_filtered == 0) {
+    cli::cli_abort(
+      "No observations remain after filtering. Please check your species and behaviour filters."
+    )
+  }
+
+  # ------------------------------------------------------------------
+  # 6. Check observations against survey tracks
+  # ------------------------------------------------------------------
+  #
+  # observations and tracks are both EPSG:4326 in your current data.
+  #
+  # Because survey_tolerance is in metres, temporarily transform BOTH
+  # datasets to a projected CRS before buffering the tracks.
+  #
+  # This is important: st_buffer(..., 1000) on EPSG:4326 is NOT a
+  # 1000-metre buffer.
+  # ------------------------------------------------------------------
+
+  spatial_crs <- 32630
+
+  observations_proj <- sf::st_transform(
+    filtered_obs,
+    crs = spatial_crs
+  )
+
+  tracks_proj <- sf::st_transform(
+    tracks,
+    crs = spatial_crs
+  )
+
+  track_buffer <- sf::st_buffer(
+    tracks_proj,
+    dist = survey_tolerance
+  )
+
   sf::sf_use_s2(FALSE)
 
   track_union <- track_buffer |>
     sf::st_make_valid() |>
     sf::st_union() |>
-    sf::st_make_valid()   # validate again post-union
+    sf::st_make_valid()
 
-  obs_within_buffer <- sf::st_within(filtered_obs, track_union, sparse = FALSE) # nolint
-  sf::sf_use_s2(TRUE)  # nolint
+  obs_within_buffer <- sf::st_within(
+    observations_proj,
+    track_union,
+    sparse = FALSE
+  )
+
+  sf::sf_use_s2(TRUE)
+
+  # st_within() returns a matrix. Because track_union has been unioned,
+  # reduce it to one logical value per observation.
+  obs_within_buffer <- apply(
+    obs_within_buffer,
+    1,
+    any
+  )
 
   if (any(!obs_within_buffer)) {
+
     n_outside <- sum(!obs_within_buffer)
-    percent_outside <- round((n_outside / nrow(filtered_obs)) * 100, 2)
-    cli::cli_warn("{n_outside} observations ({percent_outside}% of total) are outside the survey tolerance of {survey_tolerance} metres from the tracks/polygons. They will be removed.")  # nolint
-    filtered_obs <- filtered_obs[obs_within_buffer, ]
+
+    percent_outside <- round(
+      (n_outside / nrow(filtered_obs)) * 100,
+      2
+    )
+
+    cli::cli_warn(
+      paste0(
+        "{n_outside} observations (",
+        "{percent_outside}% of total) are outside the survey tolerance ",
+        "of {survey_tolerance} metres from the tracks/polygons. ",
+        "They will be removed."
+      )
+    )
+
+    filtered_obs <- filtered_obs[obs_within_buffer, , drop = FALSE]
   }
 
-  # If any coordinates are duplicated, apply a small jitter
+  # ------------------------------------------------------------------
+  # 7. Check that observations remain after track filtering
+  # ------------------------------------------------------------------
+
+  if (nrow(filtered_obs) == 0) {
+
+    cli::cli_abort(
+      paste0(
+        "No observations remain after applying the ",
+        "{survey_tolerance} metre survey tolerance."
+      )
+    )
+  }
+
+  cli::cli_alert_info(
+    "{nrow(filtered_obs)} observations remain after the survey-track check."
+  )
+
+  # ------------------------------------------------------------------
+  # 8. Handle duplicated coordinates
+  # ------------------------------------------------------------------
+  #
+  # IMPORTANT:
+  #
+  # Observations are normally stored in EPSG:4326 (degrees).
+  # Therefore jitter = 5 cannot be applied directly in EPSG:4326,
+  # because that would mean approximately 5 degrees.
+  #
+  # We transform ONLY the duplicated observations to EPSG:32630,
+  # apply a 5-metre jitter, then transform them back to their original
+  # CRS.
+  #
+  # This does NOT alter the location of non-duplicated observations.
+  # ------------------------------------------------------------------
+
   coords <- sf::st_coordinates(filtered_obs)
-  duplicated_coords <- duplicated(coords) | duplicated(coords, fromLast = TRUE)
-  # Jitter only the duplicated coordinates with st_jitter
+
+  duplicated_coords <- duplicated(coords) |
+    duplicated(coords, fromLast = TRUE)
+
   if (any(duplicated_coords)) {
-    cli::cli_inform("Applying jitter to {sum(duplicated_coords)}
-    duplicated observation coordinates.")  # nolint
-    filtered_obs[duplicated_coords, ] <- sf::st_jitter(
-      filtered_obs[duplicated_coords, ],
-      amount = jitter
-    )  # nolint
-  }
-  # Check again for duplicated coordinates, to ensure this worked
-  coords_after <- sf::st_coordinates(filtered_obs)
-  if (any(duplicated(coords_after))) {
-    n_still_duplicated <- sum(duplicated(coords_after) ||
-      duplicated(coords_after, fromLast = TRUE))
-    cli::cli_warn("{n_still_duplicated} observation coordinates
-    are still duplicated after jittering.")
+
+    n_duplicate <- sum(duplicated_coords)
+
+    cli::cli_inform(
+      "Applying {jitter} m jitter to {n_duplicate} duplicated observation coordinates."
+    )
+
+    original_crs <- sf::st_crs(filtered_obs)
+
+    if (is.na(original_crs)) {
+      cli::cli_abort(
+        "Observations do not have a valid CRS, so duplicated coordinates cannot be safely jittered."
+      )
+    }
+
+    # Transform to metres
+    filtered_obs_proj <- sf::st_transform(
+      filtered_obs,
+      crs = spatial_crs
+    )
+
+    # Jitter ONLY duplicated observations
+    filtered_obs_proj[duplicated_coords, ] <-
+      sf::st_jitter(
+        filtered_obs_proj[duplicated_coords, ],
+        amount = jitter
+      )
+
+    # Transform back to original CRS
+    filtered_obs <- sf::st_transform(
+      filtered_obs_proj,
+      crs = original_crs
+    )
   }
 
-  cli::cli_alert_success("Done!")
+  # ------------------------------------------------------------------
+  # 9. Check for remaining duplicates
+  # ------------------------------------------------------------------
+
+  coords_after <- sf::st_coordinates(filtered_obs)
+
+  duplicated_after <- duplicated(coords_after) |
+    duplicated(coords_after, fromLast = TRUE)
+
+  if (any(duplicated_after)) {
+
+    n_still_duplicated <- sum(duplicated_after)
+
+    cli::cli_warn(
+      "{n_still_duplicated} observation coordinates are still duplicated after jittering."
+    )
+  }
+
+  # ------------------------------------------------------------------
+  # 10. Final CRS diagnostic
+  # ------------------------------------------------------------------
+
+  output_crs <- sf::st_crs(filtered_obs)
+
+  if (is.na(output_crs)) {
+    cli::cli_abort(
+      "The prepared observations have lost their CRS."
+    )
+  }
+
+  if (output_crs != obs_crs) {
+    cli::cli_abort(
+      paste0(
+        "The CRS of the prepared observations does not match the input CRS.\n",
+        "Input CRS:  ", obs_crs$input, "\n",
+        "Output CRS: ", output_crs$input
+      )
+    )
+  }
+
+  cli::cli_inform(
+    "Output CRS retained: {output_crs$input}"
+  )
+
+  # ------------------------------------------------------------------
+  # 11. Final message
+  # ------------------------------------------------------------------
+
+  cli::cli_alert_success(
+    "Done! Returning {nrow(filtered_obs)} prepared observations."
+  )
+
   filtered_obs
 }
