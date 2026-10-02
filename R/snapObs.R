@@ -26,11 +26,23 @@
 #'
 # nolint end
 #' @export
-snapObs <- function(obsdata, 
-trackpoints, 
-group_col = "date",
-sparse_format = FALSE) {
-  cli::cli_h3("Snapping observations to nearest effort nodes and summarizing by group") # nolint
+snapObs <- function(
+  obsdata,
+  trackpoints,
+  group_col = "date",
+  sparse_format = FALSE
+) {
+  cli::cli_h3(
+    "Snapping observations to nearest effort nodes and summarizing by group"
+  ) # nolint
+
+  # If the input dataframe is empty or NULL, return an empty dataframe with the same structure as trackpoints
+  if (is.null(obsdata) || nrow(obsdata) == 0) {
+    cli::cli_alert_warning(
+      "obsdata is empty or NULL. Returning trackpoints with count = 0."
+    ) # nolint
+    return(trackpoints %>% dplyr::mutate(count = 0))
+  }
 
   # Check group_col exists in both datasets
   if (!(group_col %in% colnames(obsdata))) {
@@ -45,15 +57,30 @@ sparse_format = FALSE) {
   track_groups <- unique(trackpoints[[group_col]])
   missing_groups <- setdiff(obs_groups, track_groups)
   if (length(missing_groups) > 0) {
-    cli::cli_abort("The following '{group_col}' values in obsdata are missing from trackpoints: {missing_groups}")
+    cli::cli_abort(
+      "The following '{group_col}' values in obsdata are missing from trackpoints: {missing_groups}"
+    )
   }
 
   # Geometry checks and casting
-  if (!inherits(obsdata, "sf") || !all(sf::st_geometry_type(obsdata) %in% c("POINT", "MULTIPOINT"))) {
-    cli::cli_abort("obsdata must be an sf object with POINT or MULTIPOINT geometries.")
+  if (
+    !inherits(obsdata, "sf") ||
+      !all(sf::st_geometry_type(obsdata) %in% c("POINT", "MULTIPOINT"))
+  ) {
+    cli::cli_abort(
+      "obsdata must be an sf object with POINT or MULTIPOINT geometries."
+    )
   }
-  if (!inherits(trackpoints, "sf") || !all(sf::st_geometry_type(trackpoints) %in% c("POINT", "MULTIPOINT", "LINESTRING"))) {
-    cli::cli_abort("trackpoints must be an sf object with POINT, MULTIPOINT or LINESTRING geometries.")
+  if (
+    !inherits(trackpoints, "sf") ||
+      !all(
+        sf::st_geometry_type(trackpoints) %in%
+          c("POINT", "MULTIPOINT", "LINESTRING")
+      )
+  ) {
+    cli::cli_abort(
+      "trackpoints must be an sf object with POINT, MULTIPOINT or LINESTRING geometries."
+    )
   }
   if (any(sf::st_geometry_type(obsdata) == "MULTIPOINT")) {
     obsdata <- sf::st_cast(obsdata, "POINT")
@@ -64,7 +91,9 @@ sparse_format = FALSE) {
 
   # If the obs dataset is empty, return trackpoints with count = 0
   if (nrow(obsdata) == 0) {
-    cli::cli_alert_warning("obsdata is empty. Returning trackpoints with count = 0.") # nolint
+    cli::cli_alert_warning(
+      "obsdata is empty. Returning trackpoints with count = 0."
+    ) # nolint
     return(trackpoints %>% dplyr::mutate(count = 0))
   }
 
@@ -89,11 +118,10 @@ sparse_format = FALSE) {
 
   # Report maximum and minimum counts per node
   min_count <- min(sapply(result_list, function(x) min(x$count)))
-    max_count <- max(sapply(result_list, function(x) max(x$count)))
-    cli::cli_inform(
+  max_count <- max(sapply(result_list, function(x) max(x$count)))
+  cli::cli_inform(
     "Observation counts per snapped node range from {min_count} to {max_count}."
   )
-
 
   result <- dplyr::bind_rows(result_list)
 

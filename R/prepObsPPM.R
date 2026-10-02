@@ -96,9 +96,25 @@ prepObsPPM <- function(
   }
 
   if (!targetSpecies %in% unique(observations$Species)) {
-    cli::cli_abort(
-      "The specified species '{targetSpecies}' is not found in the observations data."
-    )
+    if (expect_empty) {
+      cli::cli_alert_warning(
+        "The specified species '{targetSpecies}' is not found in the observations data, but expect_empty = TRUE, so returning an empty sf dataframe."
+      )
+      return(
+        data.frame(
+          Species = character(0),
+          Behaviour = character(0),
+          geometry = sf::st_sfc(),
+          stringsAsFactors = FALSE
+        ) |>
+          sf::st_as_sf() |>
+          sf::st_set_crs(sf::st_crs(observations))
+      )
+    } else {
+      cli::cli_abort(
+        "The specified species '{targetSpecies}' is not found in the observations data."
+      )
+    }
   }
 
   if (
@@ -110,9 +126,25 @@ prepObsPPM <- function(
         )
       )
   ) {
-    cli::cli_abort(
-      "The specified behaviour '{targetBehaviour}' is not found in the observations data."
-    )
+    if (expect_empty) {
+      cli::cli_alert_warning(
+        "The specified behaviour '{targetBehaviour}' is not found in the observations data, but expect_empty = TRUE, so returning an empty sf dataframe."
+      )
+      return(
+        data.frame(
+          Species = character(0),
+          Behaviour = character(0),
+          geometry = sf::st_sfc(),
+          stringsAsFactors = FALSE
+        ) |>
+          sf::st_as_sf() |>
+          sf::st_set_crs(sf::st_crs(observations))
+      )
+    } else {
+      cli::cli_abort(
+        "The specified behaviour '{targetBehaviour}' is not found in the observations data."
+      )
+    }
   }
 
   # ------------------------------------------------------------------
@@ -329,12 +361,28 @@ prepObsPPM <- function(
   # ------------------------------------------------------------------
 
   if (nrow(filtered_obs) == 0) {
-    cli::cli_abort(
-      paste0(
-        "No observations remain after applying the ",
-        "{survey_tolerance} metre survey tolerance."
+    if (expect_empty) {
+      cli::cli_alert_warning(
+        "No observations remain after applying the {survey_tolerance} metre survey tolerance, but expect_empty = TRUE, so this is expected."
       )
-    )
+      return(
+        data.frame(
+          Species = character(0),
+          Behaviour = character(0),
+          geometry = sf::st_sfc(),
+          stringsAsFactors = FALSE
+        ) |>
+          sf::st_as_sf() |>
+          sf::st_set_crs(obs_crs)
+      )
+    } else {
+      cli::cli_abort(
+        paste0(
+          "No observations remain after applying the ",
+          "{survey_tolerance} metre survey tolerance."
+        )
+      )
+    }
   }
 
   cli::cli_alert_info(
