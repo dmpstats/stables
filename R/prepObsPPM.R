@@ -10,6 +10,8 @@
 #' @param targetBehaviour Character. The behaviour to filter observations for (default: "All" for no filtering). Case insensitive, supports partial matching.
 #' @param survey_tolerance Numeric. The buffer distance (in metres) around tracks/polygons to include observations (default: 500).
 #' @param jitter Numeric. The amount of spatial jitter (in metres) to apply to duplicated observation coordinates (default: 5).
+#' @param remove_dead Logical. If TRUE, observations with 'dead' behaviour will be removed (default: TRUE).
+#' @param expect_empty Logical. If TRUE, allows the function to return an empty sf dataframe without error if no observations remain after filtering (default: TRUE).
 #' @return An sf dataframe of filtered and processed observation points, ready for PPM analysis.
 #' @details
 #' - Validates input data types and required columns.
@@ -29,15 +31,15 @@
 #' # Example usage
 #' result <- function_name(param1, param2)
 prepObsPPM <- function(
-    observations,
-    tracks,
-    targetSpecies,
-    targetBehaviour = "All",
-    survey_tolerance = 500,
-    jitter = 5,
-    remove_dead = TRUE
+  observations,
+  tracks,
+  targetSpecies,
+  targetBehaviour = "All",
+  survey_tolerance = 500,
+  jitter = 5,
+  remove_dead = TRUE,
+  expect_empty = TRUE
 ) {
-
   cli::cli_h3("Preparing observations for PPM analysis")
 
   cli::cli_inform(
@@ -54,7 +56,7 @@ prepObsPPM <- function(
 
   if (
     !inherits(observations, "sf") ||
-    !all(sf::st_geometry_type(observations) %in% c("POINT", "MULTIPOINT"))
+      !all(sf::st_geometry_type(observations) %in% c("POINT", "MULTIPOINT"))
   ) {
     cli::cli_abort(
       "observations must be an sf dataframe with POINT or MULTIPOINT geometries."
@@ -63,15 +65,15 @@ prepObsPPM <- function(
 
   if (
     !inherits(tracks, "sf") ||
-    !all(
-      sf::st_geometry_type(tracks) %in%
-        c(
-          "LINESTRING",
-          "MULTILINESTRING",
-          "POLYGON",
-          "MULTIPOLYGON"
-        )
-    )
+      !all(
+        sf::st_geometry_type(tracks) %in%
+          c(
+            "LINESTRING",
+            "MULTILINESTRING",
+            "POLYGON",
+            "MULTIPOLYGON"
+          )
+      )
   ) {
     cli::cli_abort(
       "tracks must be an sf dataframe with LINESTRING, MULTILINESTRING, POLYGON, or MULTIPOLYGON geometries."
@@ -86,7 +88,7 @@ prepObsPPM <- function(
 
   if (
     targetBehaviour != "All" &&
-    !"Behaviour" %in% colnames(observations)
+      !"Behaviour" %in% colnames(observations)
   ) {
     cli::cli_abort(
       "The observations data must contain a 'Behaviour' column to filter by behaviour."
@@ -101,12 +103,12 @@ prepObsPPM <- function(
 
   if (
     targetBehaviour != "All" &&
-    !any(
-      stringr::str_detect(
-        tolower(observations$Behaviour),
-        tolower(targetBehaviour)
+      !any(
+        stringr::str_detect(
+          tolower(observations$Behaviour),
+          tolower(targetBehaviour)
+        )
       )
-    )
   ) {
     cli::cli_abort(
       "The specified behaviour '{targetBehaviour}' is not found in the observations data."
@@ -139,8 +141,12 @@ prepObsPPM <- function(
     cli::cli_abort(
       paste0(
         "observations and tracks have different CRSs.\n",
-        "observations: ", sf::st_crs(observations)$input, "\n",
-        "tracks: ", sf::st_crs(tracks)$input, "\n",
+        "observations: ",
+        sf::st_crs(observations)$input,
+        "\n",
+        "tracks: ",
+        sf::st_crs(tracks)$input,
+        "\n",
         "Transform them to the same CRS before calling prepObsPPM()."
       )
     )
@@ -155,7 +161,6 @@ prepObsPPM <- function(
   # ------------------------------------------------------------------
 
   if (remove_dead && "Behaviour" %in% colnames(observations)) {
-
     n_dead <- sum(
       stringr::str_detect(
         tolower(observations$Behaviour),
@@ -165,7 +170,6 @@ prepObsPPM <- function(
     )
 
     if (n_dead > 0) {
-
       cli::cli_warn(
         "Removing {n_dead} observations with 'dead' behaviour. Set remove_dead = FALSE to keep them."
       )
@@ -186,7 +190,6 @@ prepObsPPM <- function(
   # ------------------------------------------------------------------
 
   if (targetBehaviour != "All") {
-
     matching_behaviours <- unique(
       observations$Behaviour[
         stringr::str_detect(
@@ -211,7 +214,6 @@ prepObsPPM <- function(
     dplyr::filter(Species == targetSpecies)
 
   if (targetBehaviour != "All") {
-
     filtered_obs <- filtered_obs |>
       dplyr::filter(
         stringr::str_detect(
@@ -228,9 +230,25 @@ prepObsPPM <- function(
   )
 
   if (n_filtered == 0) {
-    cli::cli_abort(
-      "No observations remain after filtering. Please check your species and behaviour filters."
-    )
+    if (expect_empty) {
+      cli::cli_alert_warning(
+        "No observations remain after filtering, but expect_empty = TRUE, so this is expected."
+      )
+      return(
+        data.frame(
+          Species = character(0),
+          Behaviour = character(0),
+          geometry = sf::st_sfc(),
+          stringsAsFactors = FALSE
+        ) |>
+          sf::st_as_sf() |>
+          sf::st_set_crs(obs_crs)
+      )
+    } else {
+      cli::cli_abort(
+        "No observations remain after filtering. Please check your species and behaviour filters."
+      )
+    }
   }
 
   # ------------------------------------------------------------------
@@ -287,7 +305,6 @@ prepObsPPM <- function(
   )
 
   if (any(!obs_within_buffer)) {
-
     n_outside <- sum(!obs_within_buffer)
 
     percent_outside <- round(
@@ -312,7 +329,6 @@ prepObsPPM <- function(
   # ------------------------------------------------------------------
 
   if (nrow(filtered_obs) == 0) {
-
     cli::cli_abort(
       paste0(
         "No observations remain after applying the ",
@@ -348,7 +364,6 @@ prepObsPPM <- function(
     duplicated(coords, fromLast = TRUE)
 
   if (any(duplicated_coords)) {
-
     n_duplicate <- sum(duplicated_coords)
 
     cli::cli_inform(
@@ -393,7 +408,6 @@ prepObsPPM <- function(
     duplicated(coords_after, fromLast = TRUE)
 
   if (any(duplicated_after)) {
-
     n_still_duplicated <- sum(duplicated_after)
 
     cli::cli_warn(
@@ -417,8 +431,11 @@ prepObsPPM <- function(
     cli::cli_abort(
       paste0(
         "The CRS of the prepared observations does not match the input CRS.\n",
-        "Input CRS:  ", obs_crs$input, "\n",
-        "Output CRS: ", output_crs$input
+        "Input CRS:  ",
+        obs_crs$input,
+        "\n",
+        "Output CRS: ",
+        output_crs$input
       )
     )
   }
