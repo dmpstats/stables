@@ -9,7 +9,10 @@ prepObsPPM(
   tracks,
   targetSpecies,
   targetBehaviour = "All",
-  survey_tolerance = 500
+  survey_tolerance = 500,
+  jitter = 5,
+  remove_dead = TRUE,
+  expect_empty = TRUE
 )
 }
 \arguments{
@@ -22,6 +25,12 @@ prepObsPPM(
 \item{targetBehaviour}{Character. The behaviour to filter observations for (default: "All" for no filtering). Case insensitive, supports partial matching.}
 
 \item{survey_tolerance}{Numeric. The buffer distance (in metres) around tracks/polygons to include observations (default: 500).}
+
+\item{jitter}{Numeric. The amount of spatial jitter (in metres) to apply to duplicated observation coordinates (default: 5).}
+
+\item{remove_dead}{Logical. If TRUE, observations with 'dead' behaviour will be removed (default: TRUE).}
+
+\item{expect_empty}{Logical. If TRUE, allows the function to return an empty sf dataframe without error if no observations remain after filtering (default: TRUE).}
 }
 \value{
 An sf dataframe of filtered and processed observation points, ready for PPM analysis.
@@ -38,11 +47,4 @@ This function validates input data, filters observations by species and behaviou
 - Removes observations outside the survey tolerance.
 - Applies spatial jitter to duplicated coordinates.
 - Reports filtering and cleaning steps via cli messages.
-}
-\examples{
-\dontrun{
-result <- prepObsPPM(observations, tracks, "Gannet", "Flying", 500)
-}
-# Example usage
-result <- function_name(param1, param2)
 }

@@ -1,7 +1,7 @@
 Package: stables
 Type: Package
 Title: Helper functions for DMP statistical analyses, primarily for aerial survey data.
-Version: 0.1.0
+Version: 0.2.0
 Authors@R: c(
     person(
       "Callum", "Clarke",
@@ -26,5 +26,9 @@ Imports:
     magrittr,
     progress,
     tidyr,
-    geosphere
-RoxygenNote: 7.3.2
+    geosphere,
+    marmap,
+    stars,
+    CopernicusMarine,
+    units
+Config/roxygen2/version: 8.0.0

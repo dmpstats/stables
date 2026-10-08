@@ -20,7 +20,8 @@ leafletSurvey(
 
 \item{boundary}{An optional sf polygon representing the survey boundary}
 
-\item{obsColour}{Character; column name in obsdata to colour points by. Options are "behaviour", "species", or "none" for no colouring.}
+\item{obsColour}{Character; column name in obsdata to colour points by.
+Options are "Behaviour", "species", or "none" for no colouring.}
 }
 \value{
 A leaflet map object displaying the tracks.
@@ -29,10 +30,13 @@ A leaflet map object displaying the tracks.
 Plot survey data using Leaflet
 }
 \details{
-This function creates an interactive map using the leaflet package to visualize survey tracks and observations.
+This function creates an interactive map using the leaflet
+package to visualize survey tracks and observations.
 
 
-This function is designed to help visualize spatial track data interactively. It can be customized with additional leaflet layers and options.
+This function is designed to help visualize spatial
+track data interactively. It can be customized with
+additional leaflet layers and options.
 }
 \examples{
 \dontrun{

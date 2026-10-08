@@ -4,7 +4,7 @@
 \alias{snapObs}
 \title{Snap Observations to Nearest Effort Nodes and Summarize by Group}
 \usage{
-snapObs(obsdata, trackpoints, group_col = "date")
+snapObs(obsdata, trackpoints, group_col = "date", sparse_format = FALSE)
 }
 \arguments{
 \item{obsdata}{An `sf` object containing observation points. Must have geometry of type `POINT` or `MULTIPOINT`, and include a grouping column (e.g., "date").}
@@ -12,6 +12,8 @@ snapObs(obsdata, trackpoints, group_col = "date")
 \item{trackpoints}{An `sf` object containing effort nodes or segments (e.g., trackpoints or lines). Must have geometry of type `POINT`, `MULTIPOINT`, or `LINESTRING`, and include the same grouping column as `obsdata`.}
 
 \item{group_col}{Character. The name of the column used to group data (default is `"date"`). This column must be present in both `obsdata` and `trackpoints`.}
+
+\item{sparse_format}{Logical. If 'TRUE', returns a dataframe output with few columns (rather than an sf-object). This is useful to prepare data for MRSea analysis. Default is 'FALSE'.}
 }
 \value{
 An `sf` object with the same features as `trackpoints`, grouped by `group_col`, and a `count` column indicating the number of observations snapped to each node (0 if none).

@@ -4,12 +4,14 @@
 \alias{readHiDef}
 \title{readHiDef}
 \usage{
-readHiDef(filepath, overwrite_dates = FALSE)
+readHiDef(filepath, overwrite_dates = FALSE, force_crs = NULL)
 }
 \arguments{
 \item{filepath}{The filepath containing relevant HiDef datafiles.}
 
 \item{overwrite_dates}{Logical; if TRUE, dates in the data will be replaced with dates extracted from the filepaths. Default is FALSE.}
+
+\item{force_crs}{Optional; If provided, all spatial data will be forced to this CRS. This should be used if the source datasets have inconsistent CRS, as the stacking will fail.}
 }
 \value{
 A list containing two sf dataframes: 'tracks' and 'observations'.

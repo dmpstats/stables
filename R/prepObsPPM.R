@@ -19,17 +19,7 @@
 #' - Removes observations outside the survey tolerance.
 #' - Applies spatial jitter to duplicated coordinates.
 #' - Reports filtering and cleaning steps via cli messages.
-#' @examples
-#' \dontrun{
-#' result <- prepObsPPM(observations, tracks, "Gannet", "Flying", 500)
-#' }
 #' @export
-#'
-#' TODO: Assign transect widths based on observation data cameras
-#'
-#' @examples
-#' # Example usage
-#' result <- function_name(param1, param2)
 prepObsPPM <- function(
   observations,
   tracks,
